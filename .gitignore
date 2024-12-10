@@ -84,4 +84,18 @@ coverage.xml
 node_modules/
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log* 
+yarn-error.log*
+
+# Third party libraries and vendor files
+static/vendor/
+static/admin/
+static/rest_framework/
+static/drf-yasg/
+static/swagger-ui/
+static/redoc/
+
+# Bootstrap specific
+static/vendor/bootstrap/
+bootstrap*.css
+bootstrap*.js
+bootstrap*.map

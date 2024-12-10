@@ -13,7 +13,7 @@ class ProfileInline(admin.StackedInline):
 class CustomUserAdmin(UserAdmin):
     inlines = (ProfileInline,)
     list_display = ('username', 'email', 'first_name', 'last_name', 'get_team', 'is_staff')
-    list_filter = ('profile__team', 'is_staff', 'is_superuser', 'is_active')
+    list_filter = ('is_staff', 'is_superuser', 'is_active')
     search_fields = ('username', 'first_name', 'last_name', 'email')
     ordering = ('username',)
 
@@ -21,8 +21,9 @@ class CustomUserAdmin(UserAdmin):
         return obj.profile.team.name if obj.profile and obj.profile.team else '-'
     get_team.short_description = 'Team'
 
-# Register the new admin class
-admin.site.register(User, CustomUserAdmin)
+# Only register if User is not already registered
+if not admin.site._registry.get(User):
+    admin.site.register(User, CustomUserAdmin)
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):

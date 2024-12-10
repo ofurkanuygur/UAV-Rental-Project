@@ -1,0 +1,397 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Assembly Steps{% endblock %}
+
+{% block extra_css %}
+<style>
+    .step-card {
+        transition: transform 0.2s;
+    }
+    .step-card:hover {
+        transform: translateY(-5px);
+    }
+    .status-badge {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+    .progress {
+        height: 10px;
+    }
+    .stats-card {
+        transition: all 0.3s;
+    }
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Assembly Steps</h2>
+        {% if user.profile.team.team_type == 'assembly' %}
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newAircraftModal">
+            <i class="fas fa-plus"></i> New Aircraft Assembly
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white stats-card">
+                <div class="card-body">
+                    <h6 class="card-title">Total Assembly</h6>
+                    <h3 class="mb-0">{{ total_count }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white stats-card">
+                <div class="card-body">
+                    <h6 class="card-title">Completed Steps</h6>
+                    <h3 class="mb-0">{{ completion_stats.completed_steps }}</h3>
+                    <small>Total: {{ completion_stats.total_steps }}</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-danger text-white stats-card">
+                <div class="card-body">
+                    <h6 class="card-title">Failed Steps</h6>
+                    <h3 class="mb-0">{{ completion_stats.failed_steps }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white stats-card">
+                <div class="card-body">
+                    <h6 class="card-title">Completion Rate</h6>
+                    <h3 class="mb-0">{{ completion_stats.completion_rate|floatformat:1 }}%</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Distribution -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Status Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for status, count in status_stats.items %}
+                        <div class="col-6 mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{{ status }}</span>
+                                <span class="badge bg-{{ status|lower }}">{{ count }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Team Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for team, count in team_stats.items %}
+                        <div class="col-6 mb-3">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span>{{ team }}</span>
+                                <span class="badge bg-primary">{{ count }}</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3">
+                <div class="col-md-2">
+                    <label class="form-label">Status</label>
+                    <select name="status" class="form-select">
+                        <option value="">All</option>
+                        <option value="PENDING" {% if selected_status == 'PENDING' %}selected{% endif %}>Pending</option>
+                        <option value="IN_PROGRESS" {% if selected_status == 'IN_PROGRESS' %}selected{% endif %}>In Progress</option>
+                        <option value="COMPLETED" {% if selected_status == 'COMPLETED' %}selected{% endif %}>Completed</option>
+                        <option value="FAILED" {% if selected_status == 'FAILED' %}selected{% endif %}>Failed</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Team</label>
+                    <select name="team" class="form-select">
+                        <option value="">All</option>
+                        {% for team in teams %}
+                        <option value="{{ team.id }}" {% if selected_team == team.id|stringformat:"s" %}selected{% endif %}>
+                            {{ team.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Aircraft Type</label>
+                    <select name="aircraft_type" class="form-select">
+                        <option value="">All</option>
+                        {% for aircraft in aircraft_types %}
+                        <option value="{{ aircraft.id }}" {% if selected_aircraft_type == aircraft.id|stringformat:"s" %}selected{% endif %}>
+                            {{ aircraft.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Start Date</label>
+                    <input type="date" name="date_from" class="form-control" value="{{ selected_date_from }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">End Date</label>
+                    <input type="date" name="date_to" class="form-control" value="{{ selected_date_to }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Sort By</label>
+                    <select name="ordering" class="form-select">
+                        <option value="-created_at" {% if selected_ordering == '-created_at' %}selected{% endif %}>Newest</option>
+                        <option value="created_at" {% if selected_ordering == 'created_at' %}selected{% endif %}>Oldest</option>
+                        <option value="status" {% if selected_ordering == 'status' %}selected{% endif %}>Status</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                        <a href="{% url 'assembly:workflow_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-times"></i> Clear Filters
+                        </a>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Assembly List -->
+    <div class="row g-4">
+        {% for aircraft in aircrafts %}
+        <div class="col-md-6 col-lg-4">
+            <div class="card h-100 step-card">
+                <div class="card-body">
+                    <span class="status-badge badge bg-{{ aircraft.status|lower }}">
+                        {{ aircraft.get_status_display }}
+                    </span>
+                    <h5 class="card-title">{{ aircraft.aircraft_type.name }}</h5>
+                    <p class="card-text">
+                        <small class="text-muted">Assembly Team: {{ aircraft.assembly_team.name }}</small>
+                    </p>
+                    
+                    <!-- Progress Bar -->
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" 
+                             style="width: {{ aircraft.completion_percentage }}%"
+                             aria-valuenow="{{ aircraft.completion_percentage }}" 
+                             aria-valuemin="0" aria-valuemax="100">
+                            {{ aircraft.completion_percentage }}%
+                        </div>
+                    </div>
+
+                    <!-- Step Statuses -->
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        {% for step in aircraft.workflow_steps.all %}
+                        <span class="badge bg-{{ step.status|lower }}" 
+                              title="{{ step.get_step_type_display }}">
+                            {{ step.get_step_type_display|truncatechars:3 }}
+                        </span>
+                        {% endfor %}
+                    </div>
+
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            Created: {{ aircraft.created_at|date:"Y-m-d" }}
+                        </small>
+                        <a href="{% url 'assembly:workflow_detail' aircraft.id %}" 
+                           class="btn btn-sm btn-outline-primary">
+                            Details
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="alert alert-info">
+                No assembly records found.
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if is_paginated %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if page_obj.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.team %}&team={{ request.GET.team }}{% endif %}{% if request.GET.ordering %}&ordering={{ request.GET.ordering }}{% endif %}">
+                    Previous
+                </a>
+            </li>
+            {% endif %}
+            
+            {% for num in page_obj.paginator.page_range %}
+            <li class="page-item {% if page_obj.number == num %}active{% endif %}">
+                <a class="page-link" href="?page={{ num }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.team %}&team={{ request.GET.team }}{% endif %}{% if request.GET.ordering %}&ordering={{ request.GET.ordering }}{% endif %}">
+                    {{ num }}
+                </a>
+            </li>
+            {% endfor %}
+            
+            {% if page_obj.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.team %}&team={{ request.GET.team }}{% endif %}{% if request.GET.ordering %}&ordering={{ request.GET.ordering }}{% endif %}">
+                    Next
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    // Aircraft type selected, load parts
+    $('select[name="aircraft_type"]').change(function() {
+        var aircraftType = $(this).val();
+        var aircraftNameInput = $('input[name="aircraft_name"]');
+        
+        if (!aircraftType) {
+            // New type will be added
+            aircraftNameInput.val('').prop('readonly', false);
+        } else {
+            // Existing type selected
+            var selectedText = $(this).find('option:selected').text();
+            aircraftNameInput.val(selectedText).prop('readonly', true);
+        }
+        
+        if (aircraftType) {
+            $.get('/assembly/api/available-parts/', {aircraft_type: aircraftType}, function(data) {
+                var html = '';
+                for (var partType in data) {
+                    var count = data[partType];
+                    var status = count > 0 ? 'success' : 'danger';
+                    html += `
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>${partType}</span>
+                            <span class="badge bg-${status}">${count} available</span>
+                        </div>
+                    `;
+                }
+                $('#partsPreview').html(html);
+            });
+        } else {
+            $('#partsPreview').html('<div class="alert alert-info">Parts requirements for new aircraft type will be determined after assembly starts.</div>');
+        }
+    });
+
+    // Validate form before submission
+    $('form').submit(function(e) {
+        var aircraftType = $('select[name="aircraft_type"]').val();
+        var aircraftName = $('input[name="aircraft_name"]').val().trim();
+        
+        if (!aircraftName) {
+            e.preventDefault();
+            alert('Please enter the aircraft name.');
+            return false;
+        }
+    });
+
+    // Show parts list for the first aircraft type
+    $('select[name="aircraft_type"]').trigger('change');
+
+    // Update available parts
+    function updateAvailableParts() {
+        var aircraftType = $('#id_aircraft_type').val();
+        if (!aircraftType) return;
+
+        $.ajax({
+            url: '/assembly/api/available-parts/',
+            data: { aircraft_type: aircraftType },
+            success: function(data) {
+                var $partsList = $('#available-parts-list');
+                $partsList.empty();
+
+                if (Object.keys(data).length === 0) {
+                    $partsList.append('<div class="alert alert-info">No suitable parts found for this aircraft type.</div>');
+                    return;
+                }
+
+                Object.keys(data).forEach(function(partType) {
+                    var parts = data[partType];
+                    var $section = $('<div class="mb-4"></div>');
+                    
+                    $section.append('<h6 class="border-bottom pb-2">' + partType + '</h6>');
+                    
+                    var $table = $('<table class="table table-sm table-hover"></table>');
+                    $table.append('<thead><tr>' +
+                        '<th>Part Name</th>' +
+                        '<th>Serial Number</th>' +
+                        '<th>Production Team</th>' +
+                        '<th>Production Date</th>' +
+                        '<th>Action</th>' +
+                        '</tr></thead>');
+                    
+                    var $tbody = $('<tbody></tbody>');
+                    parts.forEach(function(part) {
+                        var $row = $('<tr></tr>');
+                        $row.append('<td>' + part.name + '</td>');
+                        $row.append('<td>' + part.serial_number + '</td>');
+                        $row.append('<td>' + (part.team || '-') + '</td>');
+                        $row.append('<td>' + part.created_at + '</td>');
+                        $row.append('<td>' +
+                            '<button class="btn btn-sm btn-primary select-part" ' +
+                            'data-part-id="' + part.id + '" ' +
+                            'data-part-name="' + part.name + '">' +
+                            '<i class="fas fa-plus"></i> Select' +
+                            '</button>' +
+                            '</td>');
+                        $tbody.append($row);
+                    });
+                    
+                    $table.append($tbody);
+                    $section.append($table);
+                    $partsList.append($section);
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error('Error loading parts:', error);
+                $('#available-parts-list').html(
+                    '<div class="alert alert-danger">' +
+                    'An error occurred while loading parts. Please try again later.' +
+                    '</div>'
+                );
+            }
+        });
+    }
+
+    // Update parts list when aircraft type changes
+    $('#id_aircraft_type').change(updateAvailableParts);
+});
+</script>
+{% endblock %} 
