@@ -5,27 +5,53 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    command: python manage.py runserver 0.0.0.0:8000
+    command: gunicorn aircraft_production.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 120
     volumes:
-      - ..:/app
-    ports:
-      - "8000:8000"
+      - static_volume:/app/staticfiles
+      - media_volume:/app/mediafiles
+    expose:
+      - 8000
+    env_file:
+      - ../.env
     depends_on:
       - db
     environment:
-      - DEBUG=1
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/aircraft_db
-      
+      - DJANGO_SETTINGS_MODULE=aircraft_production.settings
+      - POSTGRES_HOST=db
+    networks:
+      - app-network
+    
   db:
     image: postgres:13
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - ../.env
     environment:
-      - POSTGRES_DB=aircraft_db
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:1.21-alpine
+    volumes:
+      - static_volume:/app/staticfiles
+      - media_volume:/app/mediafiles
+      - ./nginx:/etc/nginx/conf.d
     ports:
-      - "5432:5432"
+      - "80:80"
+    depends_on:
+      - web
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
 
 volumes:
   postgres_data:
+  static_volume:
+  media_volume:

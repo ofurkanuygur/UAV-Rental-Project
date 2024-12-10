@@ -27,6 +27,12 @@ db.sqlite3
 db.sqlite3-journal
 media/
 staticfiles/
+*.pyc
+__pycache__
+db.sqlite3
+mediafiles/
+static_cdn/
+media_cdn/
 
 # Virtual Environment
 venv/
@@ -35,6 +41,9 @@ ENV/
 .venv
 env.bak/
 venv.bak/
+.env.prod
+.env.dev
+.env.staging
 
 # IDE
 .idea/
@@ -48,10 +57,18 @@ venv.bak/
 # Docker
 .docker/
 docker-compose.override.yml
+*.env
+.dockerignore
+docker-compose.*.yml
+docker-compose.prod.yml
+docker-compose.dev.yml
 
 # Database
 *.sqlite3
 postgres_data/
+*.sql
+*.sql.gz
+*.dump
 
 # Coverage
 htmlcov/
@@ -73,12 +90,16 @@ coverage.xml
 
 # Backup files
 *.bak
+*~
+*.swp
+*.swo
 
 # Local development settings
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+local_settings.py
 
 # Node modules (if using any JavaScript tools)
 node_modules/
@@ -99,3 +120,22 @@ static/vendor/bootstrap/
 bootstrap*.css
 bootstrap*.js
 bootstrap*.map
+
+# SSL/TLS certificates
+*.pem
+*.key
+*.crt
+*.cer
+*.der
+*.priv
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System Files
+.DS_Store
+Thumbs.db
