@@ -38,7 +38,6 @@ schema_view = get_schema_view(
 
 # API URLs
 api_urlpatterns = [
-    # App endpoints
     path('teams/', include('apps.teams.urls')),
     path('accounts/', include('apps.accounts.urls')),
     path('parts/', include('apps.parts.urls')),
@@ -53,12 +52,9 @@ urlpatterns = [
     path('api/v1/', include(api_urlpatterns)),
     
     # API Documentation
-    path('api/schema/swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
-    path('api/schema/swagger-ui/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('api/schema/redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
-    
-    # DRF browsable API authentication
-    path('api-auth/', include('rest_framework.urls')),
+    path('swagger.json', schema_view.without_ui(cache_timeout=0), name='schema-json'),
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 ]
 
 # Serve media and static files in development

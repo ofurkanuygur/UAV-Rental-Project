@@ -3,9 +3,12 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Count, Q
-from .models import AssembledAircraft
-from .serializers import AssembledAircraftSerializer
+from django.utils import timezone
+from django.db import transaction
+from .models import AssembledAircraft, WorkflowStep
+from .serializers import AssembledAircraftSerializer, WorkflowStepSerializer
 from apps.parts.models import Part, Aircraft
+from apps.teams.models import Team
 
 class AssemblyTeamRequired(permissions.BasePermission):
     """
@@ -18,24 +21,122 @@ class AssemblyTeamRequired(permissions.BasePermission):
             request.user.profile.team.team_type == 'ASSEMBLY'
         )
 
+class WorkflowStepViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing workflow steps.
+    """
+    queryset = WorkflowStep.objects.all()
+    serializer_class = WorkflowStepSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['status', 'step_type', 'assigned_team', 'assigned_user']
+    search_fields = ['notes']
+    ordering_fields = ['created_at', 'started_at', 'completed_at']
+
+    def get_queryset(self):
+        """Filter steps based on user's team"""
+        user = self.request.user
+        if not hasattr(user, 'profile') or not user.profile.team:
+            return WorkflowStep.objects.none()
+        
+        # Assembly team can see all steps
+        if user.profile.team.team_type == Team.TeamType.ASSEMBLY:
+            return WorkflowStep.objects.all()
+        
+        # Other teams can only see their assigned steps
+        return WorkflowStep.objects.filter(assigned_team=user.profile.team)
+
+    @action(detail=True, methods=['post'])
+    def start_step(self, request, pk=None):
+        """Start a workflow step"""
+        step = self.get_object()
+        
+        if step.status != WorkflowStep.Status.PENDING:
+            return Response(
+                {'error': 'Step can only be started when pending'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        step.status = WorkflowStep.Status.IN_PROGRESS
+        step.started_at = timezone.now()
+        step.assigned_user = request.user
+        step.save()
+        
+        return Response(self.get_serializer(step).data)
+
+    @action(detail=True, methods=['post'])
+    def complete_step(self, request, pk=None):
+        """Complete a workflow step"""
+        step = self.get_object()
+        
+        if step.status != WorkflowStep.Status.IN_PROGRESS:
+            return Response(
+                {'error': 'Step can only be completed when in progress'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        step.status = WorkflowStep.Status.COMPLETED
+        step.completed_at = timezone.now()
+        step.save()
+        
+        return Response(self.get_serializer(step).data)
+
 class AssembledAircraftViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing assembled aircraft.
-    Only assembly team members can create/modify aircraft.
     """
     queryset = AssembledAircraft.objects.all()
     serializer_class = AssembledAircraftSerializer
-    permission_classes = [permissions.IsAuthenticated, AssemblyTeamRequired]
-    filter_backends = [filters.SearchFilter, DjangoFilterBackend, filters.OrderingFilter]
-    search_fields = ['serial_number']
-    filterset_fields = ['aircraft_type', 'assembly_team']
-    ordering_fields = ['assembly_date', 'serial_number']
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['status', 'assembly_team']
+    search_fields = ['aircraft_type__name']
+    ordering_fields = ['created_at', 'updated_at']
 
+    @transaction.atomic
     def perform_create(self, serializer):
-        """
-        Set the assembly team automatically based on the user's team
-        """
-        serializer.save(assembly_team=self.request.user.profile.team)
+        """Create assembled aircraft and initialize workflow steps"""
+        aircraft = serializer.save()
+        
+        # Create workflow steps in sequence
+        steps = [
+            ('WING_PRODUCTION', Team.TeamType.WING),
+            ('FUSELAGE_PRODUCTION', Team.TeamType.FUSELAGE),
+            ('TAIL_PRODUCTION', Team.TeamType.TAIL),
+            ('AVIONICS_PRODUCTION', Team.TeamType.AVIONICS),
+            ('QUALITY_CHECK', Team.TeamType.ASSEMBLY),
+            ('ASSEMBLY', Team.TeamType.ASSEMBLY),
+            ('TESTING', Team.TeamType.ASSEMBLY),
+            ('FINAL_CHECK', Team.TeamType.ASSEMBLY),
+        ]
+        
+        for step_type, team_type in steps:
+            team = Team.objects.filter(team_type=team_type).first()
+            if team:
+                WorkflowStep.objects.create(
+                    assembled_aircraft=aircraft,
+                    step_type=step_type,
+                    assigned_team=team
+                )
+
+    @action(detail=True)
+    def workflow_progress(self, request, pk=None):
+        """Get workflow progress for an aircraft"""
+        aircraft = self.get_object()
+        steps = aircraft.workflow_steps.all()
+        
+        total_steps = steps.count()
+        completed_steps = steps.filter(status=WorkflowStep.Status.COMPLETED).count()
+        in_progress_steps = steps.filter(status=WorkflowStep.Status.IN_PROGRESS).count()
+        
+        return Response({
+            'total_steps': total_steps,
+            'completed_steps': completed_steps,
+            'in_progress_steps': in_progress_steps,
+            'completion_percentage': (completed_steps / total_steps * 100) if total_steps > 0 else 0,
+            'current_steps': WorkflowStepSerializer(
+                steps.filter(status=WorkflowStep.Status.IN_PROGRESS),
+                many=True
+            ).data
+        })
 
     @action(detail=False, methods=['get'])
     def available_parts(self, request):
