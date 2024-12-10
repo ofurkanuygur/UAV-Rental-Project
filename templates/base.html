@@ -1,0 +1,142 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}UAV Production System{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="{% static 'vendor/bootstrap/bootstrap-5.3.2-dist/css/bootstrap.min.css' %}" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="bg-light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'accounts:home' %}">UAV Production</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item">
+                            <a href="{% url 'assembly:workflow_list' %}" class="nav-link">
+                                <i class="fas fa-tasks"></i> Assembly Steps
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{% url 'parts:part_list' %}" class="nav-link">
+                                <i class="fas fa-cogs"></i> Parts
+                            </a>
+                        </li>
+                        {% if user.profile.team %}
+                            {% if user.profile.team.team_type == 'assembly' %}
+                                <li class="nav-item">
+                                    <a href="{% url 'assembly:quality_checks' %}" class="nav-link">
+                                        <i class="fas fa-check-circle"></i> Quality Control
+                                    </a>
+                                </li>
+                            {% endif %}
+                            <li class="nav-item">
+                                <a href="{% url 'assembly:team_statistics' %}" class="nav-link">
+                                    <i class="fas fa-chart-bar"></i> Statistics
+                                </a>
+                            </li>
+                        {% endif %}
+                        {% if user.is_staff or user.led_teams.exists %}
+                            <li class="nav-item">
+                                <a href="{% url 'teams:team_list' %}" class="nav-link">
+                                    <i class="fas fa-users-cog"></i> Team Management
+                                </a>
+                            </li>
+                        {% endif %}
+                    {% endif %}
+                </ul>
+                <ul class="navbar-nav">
+                    {% if user.is_authenticated %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" 
+                               data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-user"></i>
+                                {{ user.get_full_name|default:user.username }}
+                                {% if user.profile.team %}
+                                    <span class="badge bg-primary">{{ user.profile.team.name }}</span>
+                                {% endif %}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'accounts:profile' %}">
+                                        <i class="fas fa-id-card"></i> Profile
+                                    </a>
+                                </li>
+                                {% if user.is_staff %}
+                                    <li>
+                                        <a class="dropdown-item" href="{% url 'admin:index' %}">
+                                            <i class="fas fa-cog"></i> Admin Panel
+                                        </a>
+                                    </li>
+                                {% endif %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item text-danger" href="{% url 'accounts:logout' %}">
+                                        <i class="fas fa-sign-out-alt"></i> Logout
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a href="{% url 'accounts:login' %}" class="nav-link">
+                                <i class="fas fa-sign-in-alt"></i> Login
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a href="{% url 'accounts:register' %}" class="nav-link">
+                                <i class="fas fa-user-plus"></i> Register
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Messages -->
+    {% if messages %}
+        <div class="container mt-3">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="flex-grow-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer mt-auto py-3 bg-dark text-light">
+        <div class="container text-center">
+            <span class="text-muted">© {% now "Y" %} UAV Production System. All rights reserved.</span>
+        </div>
+    </footer>
+
+    <!-- JavaScript Dependencies -->
+    <script src="{% static 'vendor/jquery/jquery.min.js' %}"></script>
+    <script src="{% static 'vendor/bootstrap/bootstrap-5.3.2-dist/js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

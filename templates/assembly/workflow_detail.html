@@ -1,0 +1,373 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ aircraft.aircraft_type }} Assembly Details{% endblock %}
+
+{% block extra_css %}
+<style>
+    .step-timeline {
+        position: relative;
+        padding-left: 50px;
+    }
+    .step-timeline::before {
+        content: '';
+        position: absolute;
+        left: 20px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #dee2e6;
+    }
+    .timeline-item {
+        position: relative;
+        margin-bottom: 2rem;
+    }
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -35px;
+        top: 0;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid #dee2e6;
+    }
+    .timeline-item.completed::before {
+        background: #28a745;
+        border-color: #28a745;
+    }
+    .timeline-item.in-progress::before {
+        background: #0d6efd;
+        border-color: #0d6efd;
+    }
+    .timeline-item.failed::before {
+        background: #dc3545;
+        border-color: #dc3545;
+    }
+    .notes-section {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    /* Badge colors */
+    .badge.bg-pending {
+        background-color: #ffc107 !important;
+        color: #000;
+    }
+    .badge.bg-in_progress {
+        background-color: #0d6efd !important;
+        color: #fff;
+    }
+    .badge.bg-completed {
+        background-color: #198754 !important;
+        color: #fff;
+    }
+    .badge.bg-failed {
+        background-color: #dc3545 !important;
+        color: #fff;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Info Card -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <h2 class="card-title">{{ aircraft.aircraft_type }}</h2>
+                    <p class="text-muted mb-0">Assembly Team: {{ aircraft.assembly_team.name }}</p>
+                    <p class="text-muted">Created: {{ aircraft.created_at|date:"Y-m-d H:i" }}</p>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <span class="badge bg-{{ aircraft.get_status_badge_color }}">
+                        {{ aircraft.get_status_display }}
+                    </span>
+                    <div class="mt-2">
+                        <div class="progress">
+                            <div class="progress-bar" role="progressbar" 
+                                 style="width: {{ completion_percentage }}%"
+                                 aria-valuenow="{{ completion_percentage }}" 
+                                 aria-valuemin="0" aria-valuemax="100">
+                                {{ completion_percentage }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Left Column: Assembly Steps -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Assembly Steps</h5>
+                </div>
+                <div class="card-body">
+                    <div class="step-timeline">
+                        {% for step in workflow_steps %}
+                        <div class="timeline-item {{ step.status|lower }}">
+                            <div class="card">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h5 class="card-title">{{ step.get_step_type_display }}</h5>
+                                        <span class="badge bg-{{ step.get_status_badge_color }}">
+                                            {{ step.get_status_display }}
+                                        </span>
+                                    </div>
+                                    
+                                    <p class="text-muted mb-2">
+                                        Assigned Team: {{ step.assigned_team.name }}
+                                        {% if step.assigned_user %}
+                                        <br>Assigned To: {{ step.assigned_user.get_full_name }}
+                                        {% endif %}
+                                    </p>
+
+                                    {% if step.started_at %}
+                                    <p class="text-muted mb-2">
+                                        Started: {{ step.started_at|date:"Y-m-d H:i" }}
+                                        {% if step.completed_at %}
+                                        <br>Completed: {{ step.completed_at|date:"Y-m-d H:i" }}
+                                        {% endif %}
+                                    </p>
+                                    {% endif %}
+
+                                    {% if step.notes %}
+                                    <div class="notes-section mt-3">
+                                        <h6>Notes:</h6>
+                                        <pre class="text-muted">{{ step.notes }}</pre>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if user.profile.team == step.assigned_team %}
+                                    <div class="mt-3">
+                                        {% if step.status == 'PENDING' and step.can_start %}
+                                        <button class="btn btn-primary btn-sm start-step" 
+                                                data-step-id="{{ step.id }}">
+                                            Start Step
+                                        </button>
+                                        {% elif step.status == 'IN_PROGRESS' %}
+                                        <button class="btn btn-success btn-sm complete-step" 
+                                                data-step-id="{{ step.id }}">
+                                            Complete Step
+                                        </button>
+                                        <button class="btn btn-danger btn-sm fail-step" 
+                                                data-step-id="{{ step.id }}">
+                                            Mark Failed
+                                        </button>
+                                        {% endif %}
+                                        
+                                        <button class="btn btn-outline-secondary btn-sm add-note" 
+                                                data-step-id="{{ step.id }}"
+                                                data-bs-toggle="modal" 
+                                                data-bs-target="#addNoteModal">
+                                            Add Note
+                                        </button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Parts Information -->
+        <div class="col-lg-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Parts Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group">
+                        {% for part in aircraft.parts.all %}
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-1">{{ part.get_part_type_display }}</h6>
+                                {% if part.quality_check_passed %}
+                                <span class="badge bg-success">Quality Approved</span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">Pending Check</span>
+                                {% endif %}
+                            </div>
+                            <p class="mb-1">Serial No: {{ part.serial_number }}</p>
+                            <small class="text-muted">Production: {{ part.created_at|date:"Y-m-d" }}</small>
+                            {% if part.quality_notes %}
+                            <div class="mt-2">
+                                <small class="text-muted d-block">Quality Notes:</small>
+                                <small>{{ part.quality_notes }}</small>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            {% if user.profile.team.team_type == 'assembly' and all_steps_completed %}
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Final Steps</h5>
+                    <p class="card-text">All assembly steps are completed.</p>
+                    <button class="btn btn-success w-100 finalize-assembly" 
+                            data-aircraft-id="{{ aircraft.id }}">
+                        Complete Assembly
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Add Note Modal -->
+<div class="modal fade" id="addNoteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Note</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="noteForm">
+                    <div class="mb-3">
+                        <label class="form-label">Note</label>
+                        <textarea class="form-control" name="note" rows="3" required></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveNote">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+$(document).ready(function() {
+    let currentStepId = null;
+
+    // CSRF token ayarı
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    const csrftoken = getCookie('csrftoken');
+
+    // Ajax ayarları
+    $.ajaxSetup({
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader('X-CSRFToken', csrftoken);
+        }
+    });
+
+    // Not ekleme modalını hazırla
+    $('.add-note').click(function() {
+        currentStepId = $(this).data('step-id');
+        $('#noteForm textarea[name="note"]').val(''); // Formu temizle
+    });
+
+    // Not kaydetme
+    $('#saveNote').click(function() {
+        const note = $('#noteForm textarea[name="note"]').val();
+        if (!note) return;
+
+        $.ajax({
+            url: `/assembly/api/workflow/${currentStepId}/add_note/`,
+            method: 'POST',
+            data: { note: note },
+            success: function(response) {
+                $('#addNoteModal').modal('hide');
+                location.reload();
+            },
+            error: function(xhr) {
+                alert('Not eklenirken bir hata oluştu: ' + xhr.responseJSON?.error || 'Bilinmeyen hata');
+            }
+        });
+    });
+
+    // Adım başlatma
+    $('.start-step').click(function() {
+        const stepId = $(this).data('step-id');
+        $.ajax({
+            url: `/assembly/api/workflow/${stepId}/start/`,
+            method: 'POST',
+            success: function(response) {
+                location.reload();
+            },
+            error: function(xhr) {
+                alert('Adım başlatılırken bir hata oluştu: ' + xhr.responseJSON?.error || 'Bilinmeyen hata');
+            }
+        });
+    });
+
+    // Adım tamamlama
+    $('.complete-step').click(function() {
+        const stepId = $(this).data('step-id');
+        $.ajax({
+            url: `/assembly/api/workflow/${stepId}/complete/`,
+            method: 'POST',
+            data: { success: true },
+            success: function(response) {
+                location.reload();
+            },
+            error: function(xhr) {
+                alert('Adım tamamlanırken bir hata oluştu: ' + xhr.responseJSON?.error || 'Bilinmeyen hata');
+            }
+        });
+    });
+
+    // Adım başarısız
+    $('.fail-step').click(function() {
+        const stepId = $(this).data('step-id');
+        $.ajax({
+            url: `/assembly/api/workflow/${stepId}/complete/`,
+            method: 'POST',
+            data: { success: false },
+            success: function(response) {
+                location.reload();
+            },
+            error: function(xhr) {
+                alert('İşlem sırasında bir hata oluştu: ' + xhr.responseJSON?.error || 'Bilinmeyen hata');
+            }
+        });
+    });
+
+    // Montaj tamamlama
+    $('.finalize-assembly').click(function() {
+        const aircraftId = $(this).data('aircraft-id');
+        if (confirm('Montajı tamamlamak istediğinize emin misiniz?')) {
+            $.ajax({
+                url: `/assembly/api/aircraft/${aircraftId}/finalize_assembly/`,
+                method: 'POST',
+                success: function(response) {
+                    location.reload();
+                },
+                error: function(xhr) {
+                    alert('Montaj tamamlanırken bir hata oluştu: ' + xhr.responseJSON?.error || 'Bilinmeyen hata');
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %} 

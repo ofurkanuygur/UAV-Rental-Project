@@ -15,6 +15,11 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
+    
+    # Add the project root directory to the Python path
+    current_path = os.path.dirname(os.path.abspath(__file__))
+    sys.path.append(current_path)
+    
     execute_from_command_line(sys.argv)
 
 

@@ -1,0 +1,1 @@
+# Template tags için boş __init__.py dosyası
